@@ -652,7 +652,7 @@ async function preloadAllConfigs() {
     configCache.data = newData;
     configCache.loaded = true;
     configCache.lastLoad = Date.now();
-    console.log(`⚡ Configs preloaded: ${allConfigs.length} keys`);
+    console.log("⚡ Configs preloaded: " + allConfigs.length + " keys");
   } catch (e) {
     console.error("Config preload error:", e.message);
   }
