@@ -812,7 +812,6 @@ async function buildKeyboardFromLayout(userId) {
     }
   }
   if (keyboardRows.length === 0) {
-    keyboardRows = [[{ text: `💸 ${toSmallCaps("My Balance")}` }]];
   }
   return { keyboard: keyboardRows, resize_keyboard: true, is_persistent: false, one_time_keyboard: false };
 }
