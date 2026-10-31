@@ -971,7 +971,7 @@ async function processGatewayPayout({ bot, userId, amount, gatewayInfo, wallet, 
     let user = await User.findOne({ userId });
     if (!user) return { status: 'error', message: 'User not found' };
 
-    let taxDisplay = taxAmount > 0 ? ` (${taxAmount} Tax)` : '';
+    let taxDisplay = taxAmount > 0 ? " (" + taxAmount + " Tax)" : "";
     let maskedWallet = halfMaskWallet(wallet);
     let msg = `✅ <b>New Withdrawal Processed</b> ✅\n\n` +
       `🟢 <b>User :</b> <b><a href="tg://user?id=${userId}">${userId}</a></b>\n`;
