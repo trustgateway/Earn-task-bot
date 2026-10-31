@@ -873,7 +873,7 @@ async function animateProcessing(ctx, messageId, chatId, durationMs = 30000) {
     if (Date.now() - startTime > durationMs) { clearInterval(interval); return; }
     try {
       await bot.api.editMessageText(chatId, messageId,
-        `⏳ ${toSmallCaps("Processing")} ${buildProcessingDots(frame)}`,
+        `Loading ${toSmallCaps("Processing")} ${buildProcessingDots(frame)}`,
         { parse_mode: "HTML" }
       );
     } catch (e) { }
