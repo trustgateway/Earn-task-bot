@@ -1,4 +1,4 @@
-require("dotenv").config();
+prequire("dotenv").config();
 const { Bot, Keyboard, InlineKeyboard, InputFile } = require("grammy");
 const mongoose = require("mongoose");
 const express = require("express");
@@ -873,7 +873,7 @@ async function animateProcessing(ctx, messageId, chatId, durationMs = 30000) {
     if (Date.now() - startTime > durationMs) { clearInterval(interval); return; }
     try {
       await bot.api.editMessageText(chatId, messageId,
-        `Loading...`,
+        Loading ${toSmallCaps("Processing")} ${buildProcessingDots(frame)},
         { parse_mode: "HTML" }
       );
     } catch (e) { }
