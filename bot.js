@@ -980,7 +980,7 @@ msg += "\n🚀 <b>Amount :</b> <code>" + amount.toFixed(2) + "</code> INR" + tax
 msg += "⛔ <b>Address :</b> <b><code>" + maskedWallet + "</code></b>\n";
 if (utrId) msg += "💳 <b>Payment Ref :</b> <code>" + utrId + "</code>\n";
 msg += "🕒 <b>Time :</b> " + formatDateTime(new Date()) + "\n\n";
-      `💡 <b>Bot:</b> @${bot.botInfo ? bot.botInfo.username : "Bot"}\n\n` +
+      msg += "💡 <b>Bot:</b> @" + (bot.botInfo ? bot.botInfo.username : "Bot") + "\n\n";
       `⚠️ <b>${gatewayInfo.name} Response :</b>\n<code>${resData}</code>`;
 
     for (let ch of channelList) {
