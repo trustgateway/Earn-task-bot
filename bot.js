@@ -1,6 +1,6 @@
 require("dotenv").config();
 const { Bot, Keyboard, InlineKeyboard, InputFile } = require("grammy");
-const mongoose = require("mongoose"); ft
+const mongoose = require("mongoose"); 
 const express = require("express");
 const path = require("path");
 const crypto = require("crypto");
