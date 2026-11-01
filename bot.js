@@ -1,4 +1,4 @@
-upprequire("dotenv").config();
+#upprequire("dotenv").config();
 const { Bot, Keyboard, InlineKeyboard, InputFile } = require("grammy");
 const mongoose = require("mongoose"); ft
 const express = require("express");
@@ -1046,7 +1046,7 @@ finalUrl = apiUrl + separator + tokenParam + "upi=" + encodeURIComponent(upiId) 
     if (!user) return { status: 'error', message: 'User not found' };
 
     let taxDisplay = taxAmount > 0 ? " (" + taxAmount + " Tax)" : "";
-    let msg = `✅ <b>New Auto UPI Withdrawal</b> ✅\n\n` +
+   let msg = `✅ <b>New Auto UPI Withdrawal</b> ✅\n\n` +
       `🟢 <b>User :</b> <b><a href="tg://user?id=${userId}">${userId}</a></b>\n` +
       `✌ <b>Old balance :-</b> ₹${(user.balance + amount).toFixed(2)}\n` +
       `✌️ <b>Remaining Balance :-</b> ₹${user.balance.toFixed(2)}\n\n` +
