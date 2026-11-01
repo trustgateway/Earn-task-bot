@@ -6235,9 +6235,10 @@ bot.callbackQuery(/^auto_bank_confirm_/, async (ctx) => {
       await logBalanceHistory(userId, "Auto Bank Failed (Refunded)", amount);
       await ctx.api.editMessageText(chatId, msgId,
         `❌ <b>Withdrawal Failed</b>\n\n💰 <b>Amount:</b> ₹${amount.toFixed(2)}\n🌐 <b>Gateway:</b> ${bank.name}\n📝 <b>Reason:</b> ${escapeHtml(result.message || "Gateway error")}\n\n💵 <b>Refunded:</b> ₹${user.balance.toFixed(2)}`,
-        { parse_mode: "HTML", reply_markup: new InlineKeyboard().text(makeBtn("Menu"), "back_to_balance") }
-      ).catch(() => { });
-    }
+            { parse_mode: "HTML", reply_markup: new InlineKeyboard().text(makeBtn("Menu"), "back_to_balance") }
+  ).catch(() => { });
+}
+    
   } catch (e) {
     console.error("auto_bank_confirm error:", e.message);
   }
