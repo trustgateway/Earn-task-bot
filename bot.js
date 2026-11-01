@@ -1009,7 +1009,7 @@ async function processAutoUpiPayout({ bot, userId, amount, gateway, upiId, taxAm
         .replace(/{token}/g, token);
       if (token && !finalUrl.includes("token=") && !finalUrl.includes(token)) {
         let separator = finalUrl.includes("?") ? "&" : "?";
-        finalUrl += `${separator}token=${encodeURIComponent(token)}`;
+        finalUrl += separator + "token=" + encodeURIComponent(token);
       }
     } else {
       let separator = apiUrl.includes("?") ? "&" : "?";
