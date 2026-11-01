@@ -1,4 +1,4 @@
-#upprequire("dotenv").config();
+require("dotenv").config();
 const { Bot, Keyboard, InlineKeyboard, InputFile } = require("grammy");
 const mongoose = require("mongoose"); ft
 const express = require("express");
