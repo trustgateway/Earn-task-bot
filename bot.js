@@ -1013,7 +1013,7 @@ async function processAutoUpiPayout({ bot, userId, amount, gateway, upiId, taxAm
       }
     } else {
       let separator = apiUrl.includes("?") ? "&" : "?";
-      let tokenParam = token ? `token=${encodeURIComponent(token)}&` : "";
+      let tokenParam = token ? "token=" + encodeURIComponent(token) + "&" : "";
       finalUrl = `${apiUrl}${separator}${tokenParam}upi=${encodeURIComponent(upiId)}&amount=${netAmount}&order_id=${ref}`;
     }
 
