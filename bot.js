@@ -976,7 +976,7 @@ async function processGatewayPayout({ bot, userId, amount, gatewayInfo, wallet, 
     let msg = "<b>New Withdrawal Processed</b>\n\n";
 msg += "<b>User :</b> <b><a href=\"tg://user?id=" + userId + "\">" + userId + "</a></b>\n";
     if (showRemainingBalance) msg += "✌ Old balance :- " + (user.balance + amount).toFixed(2) + "\n🤘 Remaining Balance :- " + user.balance.toFixed(2) + "\n";
-    msg += `\n🚀 <b>Amount :</b> <code>₹${amount.toFixed(2)}</code> INR${taxDisplay} (-)\n` +
+    msg += "\n🚀 <b>Amount :</b> <code>" + amount.toFixed(2) + "</code> INR" + taxDisplay + " (-)\n";
       `⛔ <b>Address :</b> <b><code>${maskedWallet}</code></b>\n`;
     if (utrId) msg += `💳 <b>Payment Ref :</b> <code>${utrId}</code>\n`;
     msg += `🕒 <b>Time :</b> ${formatDateTime(new Date())}\n\n` +
