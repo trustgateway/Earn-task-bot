@@ -973,13 +973,13 @@ async function processGatewayPayout({ bot, userId, amount, gatewayInfo, wallet, 
 
     let taxDisplay = taxAmount > 0 ? " (" + taxAmount + " Tax)" : "";
     let maskedWallet = halfMaskWallet(wallet);
-    let msg = "<b>New Withdrawal Processed</b>\n\n";
-msg += "<b>User :</b> <b><a href=\"tg://user?id=" + userId + "\">" + userId + "</a></b>\n";
-    if (showRemainingBalance) msg += "✌ Old balance :- " + (user.balance + amount).toFixed(2) + "\n🤘 Remaining Balance :- " + user.balance.toFixed(2) + "\n";
-    msg += "\n🚀 <b>Amount :</b> <code>" + amount.toFixed(2) + "</code> INR" + taxDisplay + " (-)\n";
-      msg += "⛔ <b>Address :</b> <b><code>" + maskedWallet + "</code></b>\n";
+    let msg = "✅ <b>New Withdrawal Processed</b> ✅\n\n";
+msg += "🟢 <b>User :</b> <b><a href=\"tg://user?id=" + userId + "\">" + userId + "</a></b>\n";
+if (showRemainingBalance) msg += "✌ Old balance :- " + (user.balance + amount).toFixed(2) + "\n🤘 Remaining Balance :- " + user.balance.toFixed(2) + "\n";
+msg += "\n🚀 <b>Amount :</b> <code>" + amount.toFixed(2) + "</code> INR" + taxDisplay + " (-)\n";
+msg += "⛔ <b>Address :</b> <b><code>" + maskedWallet + "</code></b>\n";
 if (utrId) msg += "💳 <b>Payment Ref :</b> <code>" + utrId + "</code>\n";
-    msg += `🕒 <b>Time :</b> ${formatDateTime(new Date())}\n\n` +
+msg += "🕒 <b>Time :</b> " + formatDateTime(new Date()) + "\n\n";
       `💡 <b>Bot:</b> @${bot.botInfo ? bot.botInfo.username : "Bot"}\n\n` +
       `⚠️ <b>${gatewayInfo.name} Response :</b>\n<code>${resData}</code>`;
 
