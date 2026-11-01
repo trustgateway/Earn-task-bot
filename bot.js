@@ -6158,6 +6158,7 @@ bot.callbackQuery("auto_bank_cancel", async (ctx) => {
 });
 
 bot.callbackQuery(/^auto_bank_confirm_/, async (ctx) => {
+bot.callbackQuery(/^auto_bank_confirm_/, async (ctx) => {
   try {
     let data = ctx.callbackQuery.data.replace("auto_bank_confirm_", "");
     let parts = data.split("_");
@@ -6224,8 +6225,7 @@ bot.callbackQuery(/^auto_bank_confirm_/, async (ctx) => {
         `🔖 <b>Payment Ref:</b> <code>${paymentRef}</code>\n` +
         `🚀 <b>Transaction ID:</b> <code>${txnNumber}</code>\n\n` +
         `✅ Please check your bank account!`;
-      await ctx.api.editMessageText(chatId, msgId, successMsg, { parse_mode: "HTML", reply_markup: new InlineKeyboard().url("✅ Check Status", receiptUrl) }).
-         }).catch(() => { });
+      await ctx.api.editMessageText(chatId, msgId, successMsg, { parse_mode: "HTML", reply_markup: new InlineKeyboard().url("✅ Check Status", receiptUrl) }).catch(() => { });
       let restoreKb = await buildKeyboardFromLayout(userId);
       await ctx.reply(" ", { reply_markup: restoreKb }).then(m => ctx.api.deleteMessage(chatId, m.message_id).catch(() => { })).catch(() => { });
     } else {
@@ -6233,7 +6233,7 @@ bot.callbackQuery(/^auto_bank_confirm_/, async (ctx) => {
       user.withdrawnTotal = Math.max(0, (user.withdrawnTotal || 0) - amount);
       await user.save();
       await logBalanceHistory(userId, "Auto Bank Failed (Refunded)", amount);
-            await ctx.api.editMessageText(chatId, msgId,
+      await ctx.api.editMessageText(chatId, msgId,
         `❌ <b>Withdrawal Failed</b>\n\n💰 <b>Amount:</b> ₹${amount.toFixed(2)}\n🌐 <b>Gateway:</b> ${bank.name}\n📝 <b>Reason:</b> ${escapeHtml(result.message || "Gateway error")}\n\n💵 <b>Refunded:</b> ₹${user.balance.toFixed(2)}`,
         { parse_mode: "HTML", reply_markup: new InlineKeyboard().text(makeBtn("Menu"), "back_to_balance") }
       ).catch(() => { });
@@ -6242,7 +6242,7 @@ bot.callbackQuery(/^auto_bank_confirm_/, async (ctx) => {
     console.error("auto_bank_confirm error:", e.message);
   }
 });
-
+  
 bot.callbackQuery(/^wd_(upi|redeem)$/, async (ctx) => {
   ctx.answerCallbackQuery().catch(() => { });
   let userId = ctx.from.id;
