@@ -1015,6 +1015,7 @@ async function processAutoUpiPayout({ bot, userId, amount, gateway, upiId, taxAm
       let separator = apiUrl.includes("?") ? "&" : "?";
       let tokenParam = token ? "token=" + encodeURIComponent(token) + "&" : "";
 finalUrl = apiUrl + separator + tokenParam + "upi=" + encodeURIComponent(upiId) + "&amount=" + netAmount + "&order_id=" + ref;
+    }
     let response, resData;
     try {
       response = await axios({ method, url: finalUrl, timeout: 30000 });
