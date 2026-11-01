@@ -1,6 +1,6 @@
 {
   "name": "earn-task-bot",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Telegram Payment Task Bot with Mini App + Dynamic Gateway + Auto UPI (Deposit & Withdraw)",
   "main": "bot.js",
   "scripts": {
@@ -19,7 +19,7 @@
     "nodemon": "^3.1.9"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "20.x"
   },
   "keywords": [
     "telegram",
