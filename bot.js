@@ -1047,7 +1047,7 @@ finalUrl = apiUrl + separator + tokenParam + "upi=" + encodeURIComponent(upiId) 
 
     let taxDisplay = taxAmount > 0 ? " (" + taxAmount + " Tax)" : "";
     let msg = "\u2705 <b>New Auto UPI Withdrawal</b> \u2705\n\n" +
-      `🟢 <b>User :</b> <b><a href="tg://user?id=${userId}">${userId}</a></b>\n` +
+     "🟢 <b>User :</b> <b><a href='tg://user?id=" + userId + "'>" + userId + "</a></b>\n" + 
       `✌ <b>Old balance :-</b> ₹${(user.balance + amount).toFixed(2)}\n` +
       `✌️ <b>Remaining Balance :-</b> ₹${user.balance.toFixed(2)}\n\n` +
       `🚀 <b>Amount :</b> <code>₹${amount.toFixed(2)}</code> INR${taxDisplay} (-)\n` +
