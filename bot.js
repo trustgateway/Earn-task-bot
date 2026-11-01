@@ -6158,7 +6158,6 @@ bot.callbackQuery("auto_bank_cancel", async (ctx) => {
 });
 
 bot.callbackQuery(/^auto_bank_confirm_/, async (ctx) => {
-bot.callbackQuery(/^auto_bank_confirm_/, async (ctx) => {
   try {
     let data = ctx.callbackQuery.data.replace("auto_bank_confirm_", "");
     let parts = data.split("_");
