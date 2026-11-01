@@ -1045,7 +1045,7 @@ finalUrl = apiUrl + separator + tokenParam + "upi=" + encodeURIComponent(upiId) 
     let user = await User.findOne({ userId });
     if (!user) return { status: 'error', message: 'User not found' };
 
-    let taxDisplay = taxAmount > 0 ? ` (${taxAmount} Tax)` : '';
+    let taxDisplay = taxAmount > 0 ? " (" + taxAmount + " Tax)" : "";
     let msg = `✅ <b>New Auto UPI Withdrawal</b> ✅\n\n` +
       `🟢 <b>User :</b> <b><a href="tg://user?id=${userId}">${userId}</a></b>\n` +
       `✌ <b>Old balance :-</b> ₹${(user.balance + amount).toFixed(2)}\n` +
