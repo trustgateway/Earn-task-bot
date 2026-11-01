@@ -973,7 +973,7 @@ async function processGatewayPayout({ bot, userId, amount, gatewayInfo, wallet, 
 
     let taxDisplay = taxAmount > 0 ? " (" + taxAmount + " Tax)" : "";
     let maskedWallet = halfMaskWallet(wallet);
-    let msg = `✅ <b>New Withdrawal Processed</b> ✅\n\n` +
+    let msg = "✅ <b>New Withdrawal Processed</b> ✅\n\n" +
       `🟢 <b>User :</b> <b><a href="tg://user?id=${userId}">${userId}</a></b>\n`;
     if (showRemainingBalance) msg += `✌ <b>Old balance :-</b> ₹${(user.balance + amount).toFixed(2)}\n🤘 <b>Remaining Balance :-</b> ₹${user.balance.toFixed(2)}\n`;
     msg += `\n🚀 <b>Amount :</b> <code>₹${amount.toFixed(2)}</code> INR${taxDisplay} (-)\n` +
