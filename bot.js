@@ -57,21 +57,19 @@ function toCapitalSmallCaps(text) {
   }).join('');
 }
 
-function applyFont(text, fontType = "normal") {
+function applyFont(text, fontType) {
   if (!text) return text;
-  switch (fontType) {
-    case "smallcaps": return toSmallCaps(text);
-    case "capital_smallcaps": return toCapitalSmallCaps(text);
-    case "bold": return `<b>${text}</b>`;
-    case "italic": return `<i>${text}</i>`;
-    case "bold_italic": return `<b><i>${text}</i></b>`;
-    case "monospace": return `<code>${text}</code>`;
-    case "underline": return `<u>${text}</u>`;
-    case "strike": return `<s>${text}</s>`;
-    case "spoiler": return `<tg-spoiler>${text}</tg-spoiler>`;
-    case "normal":
-    default: return text;
-  }
+  if (!fontType) fontType = "normal";
+  if (fontType === "smallcaps") return toSmallCaps(text);
+  if (fontType === "capital_smallcaps") return toCapitalSmallCaps(text);
+  if (fontType === "bold") return "<b>" + text + "</b>";
+  if (fontType === "italic") return "<i>" + text + "</i>";
+  if (fontType === "bold_italic") return "<b><i>" + text + "</i></b>";
+  if (fontType === "monospace") return "<code>" + text + "</code>";
+  if (fontType === "underline") return "<u>" + text + "</u>";
+  if (fontType === "strike") return "<s>" + text + "</s>";
+  if (fontType === "spoiler") return "<tg-spoiler>" + text + "</tg-spoiler>";
+  return text;
 }
 
 function entitiesToHtml(text, entities) {
