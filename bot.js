@@ -1,4 +1,4 @@
-```javascript
+#```javascript
 require("dotenv").config();
 const { Bot, Keyboard, InlineKeyboard, InputFile } = require("grammy");
 const mongoose = require("mongoose");
@@ -194,9 +194,9 @@ function convertOwnerLink(input) {
   let str = String(input || "").trim();
   if (str.startsWith('http://') || str.startsWith('https://')) return str;
   if (str.startsWith('tg://')) return str;
-  if (str.startsWith('@')) return `https://t.me/${str.substring(1)}`;
-  if (/^\d+$/.test(str)) return `tg://user?id=${str}`;
-  return `https://t.me/${str}`;
+  if (str.startsWith('@')) return 'https://t.me/' + str.substring(1);
+  if (/^\d+$/.test(str)) return 'tg://user?id=' + str;
+  return 'https://t.me/' + str;
 }
 
 function isValidTelegramID(input) {
