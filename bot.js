@@ -3963,7 +3963,7 @@ async function sendBalancePage(ctx, edit, animate) {
           var progress = i / steps;
           var eased = 1 - Math.pow(1 - progress, 3);
           var currentBalance = startBalance + (diff * eased);
-          var animMsg = msg.replace(RUPEE + "[\d,]+\.\d{2}/, RUPEE + currentBalance.toFixed(2));
+          var animMsg = msg.replace(new RegExp(RUPEE + "[\\d,]+\\.\\d{2}"), RUPEE + currentBalance.toFixed(2));
           try {
             await ctx.api.editMessageText(chatId, messageId, animMsg, { reply_markup: kb, parse_mode: "HTML" }).catch(function() { });
           } catch (e) { }
