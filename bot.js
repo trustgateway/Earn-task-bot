@@ -3216,3 +3216,776 @@ async function saveCodes(text, type, ctx) {
   await ctx.reply(summary, { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: type === "amazon" ? "adm_amazon" : "adm_create_gift", style: "primary" }]] } }).catch(() => { });
 }
 
+bot.callbackQuery("admin", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  delete userState[ctx.from.id];
+  await sendAdminPanel(ctx, true);
+});
+
+async function sendAdminPanel(ctx, edit) {
+  if (edit === undefined) edit = true;
+  var counts = await Promise.all([
+    User.countDocuments({}),
+    BotAdmin.countDocuments({ isActive: true }),
+    Gateway.countDocuments({ isActive: true })
+  ]);
+  var userCount = counts[0], activeAdmins = counts[1], gatewayCount = counts[2];
+  var botStatus = await getConfig("bot_status", "active");
+  var statusDisplay = botStatus === "active" ? "\u2705 Active" : (botStatus === "maintenance" ? "\u26A0\uFE0F Maintenance" : "\u274C Disabled");
+  var minW = await getConfig("min_withdraw", 0);
+  var maxW = await getConfig("max_withdraw", 0);
+  var pChannel = await getConfig("payout_channel", null);
+  if (!pChannel || pChannel === "Not Set") pChannel = "Not Set";
+  var supportId = await getConfig("support_username", "Not Set");
+  var quickTaxEnabled = await getConfig("quick_pay_enabled", true);
+  var quickTaxPercent = await getConfig("quick_pay_tax_percent", 0);
+  var panelText = "\uD83D\uDC51 <b>Admin Panel</b>\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n" +
+    "\uD83E\uDD16 <b>Bot Status:</b> " + statusDisplay + "\n" +
+    "\uD83D\uDCB8 <b>Min:</b> " + RUPEE + minW + " | \uD83D\uDCB0 <b>Max:</b> " + RUPEE + maxW + "\n" +
+    "\uD83D\uDCE2 <b>Payout:</b> <code>" + pChannel + "</code>\n" +
+    "\uD83D\uDCAC <b>Support:</b> <code>" + supportId + "</code>\n" +
+    "\uD83C\uDF10 <b>Gateways:</b> " + gatewayCount + " active\n" +
+    "\u26A1 <b>Quick Pay:</b> " + (quickTaxEnabled ? "\uD83D\uDFE2 ON" : "\uD83D\uDD34 OFF") + " (Tax: " + quickTaxPercent + "%)\n" +
+    "\uD83D\uDC65 <b>Users:</b> " + userCount + " | \uD83D\uDC51 <b>Admins:</b> " + activeAdmins + "\n\n" +
+    "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501";
+  var freshConfig = await Config.findOne({ key: "admin_panel_layout" }).lean();
+  var layout = (freshConfig && freshConfig.value) ? freshConfig.value : DEFAULT_ADMIN_PANEL_LAYOUT;
+  configCache.data["admin_panel_layout"] = layout;
+  var visibleLayout = layout.filter(function(b) { return !b.hidden; });
+  var rawButtons = [];
+  var maxRow = visibleLayout.length > 0 ? Math.max.apply(null, visibleLayout.map(function(b) { return b.row; })) : 0;
+  for (var r = 0; r <= maxRow; r++) {
+    var rowButtons = visibleLayout.filter(function(b) { return b.row === r; });
+    if (rowButtons.length > 0) {
+      var row = rowButtons.map(function(btn) {
+        var b = { text: btn.name, callback_data: btn.key };
+        if (btn.style && ["primary", "success", "danger"].indexOf(btn.style) >= 0) b.style = btn.style;
+        return b;
+      });
+      rawButtons.push(row);
+    }
+  }
+  var styledKb = { inline_keyboard: rawButtons };
+  if (edit && ctx.callbackQuery) await ctx.editMessageText(panelText, { reply_markup: styledKb, parse_mode: "HTML" }).catch(() => { });
+  else await ctx.reply(panelText, { reply_markup: styledKb, parse_mode: "HTML" }).catch(() => { });
+}
+
+bot.callbackQuery("adm_permissions", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  await renderPermissionsPanel(ctx);
+});
+
+async function renderPermissionsPanel(ctx) {
+  var ownerId = await getConfig("owner_id", MAIN_OWNER_ID);
+  var ownerUser = await User.findOne({ userId: ownerId }).lean();
+  var admins = await BotAdmin.find({}).sort({ addedAt: -1 }).lean();
+  var bodyText = "\uD83D\uDC51 <b>Owner:</b> " + (ownerUser ? (ownerUser.firstName || "Owner") : "Owner") + "\n\uD83C\uDD94 <code>" + ownerId + "</code>\n\n\uD83D\uDCCA Total Admins: " + admins.length + "\n\n\uD83D\uDC47 Click to toggle / remove:";
+  var text = "<b>Admin Permissions</b>\n\n<blockquote>" + bodyText + "</blockquote>";
+  var kb = new InlineKeyboard();
+  for (var i = 0; i < admins.length; i++) {
+    var a = admins[i];
+    var u = await User.findOne({ userId: a.userId }).lean();
+    var name = u ? (u.firstName || "User") : "Unknown";
+    var status = a.isActive ? "\uD83D\uDFE2" : "\uD83D\uDD34";
+    kb.row({ text: status + " " + name + " — " + a.userId, callback_data: "adm_perm_toggle_" + a.userId, style: "primary" });
+    kb.row({ text: "Remove", callback_data: "adm_perm_remove_" + a.userId, style: "danger" });
+  }
+  kb.row({ text: "Add New Admin", callback_data: "admin_add", style: "success" });
+  kb.row({ text: "Back to Admin", callback_data: "admin", style: "primary" });
+  await ctx.editMessageText(text, { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+}
+
+bot.callbackQuery(/^adm_perm_toggle_/, async (ctx) => {
+  if (!(await isOwner(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Owner only!", show_alert: true }).catch(() => { });
+  var adminId = parseInt(ctx.callbackQuery.data.replace("adm_perm_toggle_", ""), 10);
+  var admin = await BotAdmin.findOne({ userId: adminId });
+  if (!admin) return ctx.answerCallbackQuery({ text: "Not found", show_alert: true }).catch(() => { });
+  admin.isActive = !admin.isActive;
+  if (!admin.isActive) { admin.disabledAt = new Date(); admin.disabledBy = ctx.from.id; }
+  else { admin.disabledAt = null; admin.disabledBy = null; }
+  await admin.save();
+  await logAdminAction(ctx.from.id, ctx.from.first_name || "Owner", admin.isActive ? "Admin Enabled" : "Admin Disabled", String(adminId), 0, adminId);
+  await ctx.answerCallbackQuery({ text: admin.isActive ? "🟢 Enabled" : "🔴 Disabled" }).catch(() => { });
+  await renderPermissionsPanel(ctx);
+});
+
+bot.callbackQuery(/^adm_perm_remove_/, async (ctx) => {
+  if (!(await isOwner(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Owner only!", show_alert: true }).catch(() => { });
+  var adminId = parseInt(ctx.callbackQuery.data.replace("adm_perm_remove_", ""), 10);
+  await BotAdmin.deleteOne({ userId: adminId });
+  await logAdminAction(ctx.from.id, ctx.from.first_name || "Owner", "Admin Removed", String(adminId), 0, adminId);
+  await ctx.answerCallbackQuery({ text: "Removed!" }).catch(() => { });
+  await renderPermissionsPanel(ctx);
+});
+
+bot.callbackQuery("admin_add", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isOwner(ctx.from.id))) return;
+  userState[ctx.from.id] = "WAITING_ADMIN_ADD";
+  await ctx.editMessageText("<b>Add New Admin</b>\n\n📝 Send User ID or @username:\n\nExample:\n<code>123456789</code>\n<code>@username</code>", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "adm_permissions", style: "danger" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("adm_transfer", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isOwner(ctx.from.id))) return;
+  userState[ctx.from.id] = "WAITING_NEW_OWNER";
+  await ctx.editMessageText("<b>Transfer Ownership</b>\n\n⚠️ You will become an Admin.\n\n📝 Send new Owner User ID:", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "admin", style: "danger" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery(/^admin_transfer_confirm_/, async (ctx) => {
+  if (!(await isOwner(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  var newOwnerId = parseInt(ctx.callbackQuery.data.replace("admin_transfer_confirm_", ""), 10);
+  if (isNaN(newOwnerId)) return;
+  var targetUser = await User.findOne({ userId: newOwnerId });
+  if (!targetUser) return ctx.answerCallbackQuery({ text: "User not found!", show_alert: true }).catch(() => { });
+  await BotAdmin.findOneAndUpdate({ userId: ctx.from.id }, { addedAt: new Date(), addedBy: ctx.from.id, isActive: true }, { upsert: true });
+  await setConfig("owner_id", newOwnerId);
+  await logAdminAction(ctx.from.id, ctx.from.first_name || "Owner", "Ownership Transferred", "New owner: " + newOwnerId, 0, newOwnerId);
+  try { await ctx.api.sendMessage(newOwnerId, "👑 <b>Congratulations!</b>\nYou are now the OWNER of this bot!\n\nFull control granted.", { parse_mode: "HTML" }).catch(() => { }); } catch (e) { }
+  await ctx.answerCallbackQuery({ text: "✅ Transferred!" }).catch(() => { });
+  await sendAdminPanel(ctx, true);
+});
+
+bot.callbackQuery("adm_admins", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  await renderPermissionsPanel(ctx);
+});
+
+bot.callbackQuery("adm_bot_status", async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  var current = await getConfig("bot_status", "active");
+  var next = current === "active" ? "maintenance" : current === "maintenance" ? "disabled" : "active";
+  await setConfig("bot_status", next);
+  await setConfig("bot_active", next === "active");
+  await logAdminAction(ctx.from.id, ctx.from.first_name || "Admin", "Bot Status Changed", current + " -> " + next, 0, null);
+  var toastMsg = next === "active" ? "✅ Active" : next === "maintenance" ? "⚠️ Maintenance" : "❌ Disabled";
+  await ctx.answerCallbackQuery({ text: toastMsg }).catch(() => { });
+  await sendAdminPanel(ctx, true);
+});
+
+bot.callbackQuery("adm_manage_ban", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  var bannedUsers = await User.find({ isBanned: true }).limit(20).lean();
+  var bodyText = "Total Banned: " + bannedUsers.length + "\n\n";
+  bannedUsers.forEach(function(u, i) { bodyText += (i + 1) + ". " + (u.firstName || "User") + " — <code>" + u.userId + "</code>\n"; });
+  var kb = new InlineKeyboard()
+    .row({ text: "Ban New User", callback_data: "adm_ban_new", style: "danger" })
+    .row({ text: "Unban User", callback_data: "adm_unban_user", style: "success" })
+    .row({ text: "Back", callback_data: "admin", style: "primary" });
+  await ctx.editMessageText("<b>Manage Ban Users</b>\n\n<blockquote>" + bodyText + "</blockquote>", { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+});
+
+bot.callbackQuery("adm_ban_new", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  userState[ctx.from.id] = "BAN_USER_WAIT";
+  await ctx.editMessageText("🚫 Send User ID to BAN:", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "adm_manage_ban", style: "danger" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("adm_unban_user", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  userState[ctx.from.id] = "UNBAN_USER_WAIT";
+  await ctx.editMessageText("🔓 Send User ID to UNBAN:", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "adm_manage_ban", style: "danger" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("adm_manage_ban_wallet", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  var unlimitedWallet = await getConfig("unlimited_wallet", false);
+  var onetimeWallet = await getConfig("onetime_wallet", false);
+  var text = "<b>Manage Ban Wallet</b>\n\n♾️ Unlimited: " + (unlimitedWallet ? "🟢 ON" : "🔴 OFF") + "\n⏱️ One-Time: " + (onetimeWallet ? "🟢 ON" : "🔴 OFF");
+  var kb = new InlineKeyboard()
+    .row({ text: "Ban Wallet", callback_data: "adm_ban_wallet", style: "danger" })
+    .row({ text: unlimitedWallet ? "Unlimited: ON" : "Unlimited: OFF", callback_data: "adm_unlimited_wallet", style: "primary" })
+    .row({ text: onetimeWallet ? "One-Time: ON" : "One-Time: OFF", callback_data: "adm_onetime_wallet", style: "primary" })
+    .row({ text: "Back", callback_data: "admin", style: "primary" });
+  await ctx.editMessageText(text, { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+});
+
+bot.callbackQuery("adm_ban_wallet", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  userState[ctx.from.id] = "BAN_WALLET_WAIT";
+  await ctx.editMessageText("🚫 Send Wallet ID to BAN:", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "adm_manage_ban_wallet", style: "danger" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("adm_unlimited_wallet", async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  var cur = await getConfig("unlimited_wallet", false);
+  await setConfig("unlimited_wallet", !cur);
+  await ctx.answerCallbackQuery({ text: !cur ? "ON" : "OFF" }).catch(() => { });
+});
+
+bot.callbackQuery("adm_onetime_wallet", async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  var cur = await getConfig("onetime_wallet", false);
+  await setConfig("onetime_wallet", !cur);
+  await ctx.answerCallbackQuery({ text: !cur ? "ON" : "OFF" }).catch(() => { });
+});
+
+bot.callbackQuery("adm_wd_status", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  var isEnabled = await getConfig("withdraw_enabled", true);
+  var status = isEnabled ? "ON" : "OFF";
+  var desc = isEnabled ? "All users can request withdrawals." : "All withdrawal requests disabled.";
+  var text = "<b>Withdraw Status</b>\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nGlobal Withdraw: <b>" + status + "</b>\n\n" + desc + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+  var kb = new InlineKeyboard().row({ text: isEnabled ? "Turn OFF" : "Turn ON", callback_data: "toggle_withdraw_global", style: isEnabled ? "danger" : "success" }).row({ text: "Back", callback_data: "admin", style: "primary" });
+  await ctx.editMessageText(text, { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+});
+
+bot.callbackQuery("toggle_withdraw_global", async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  var current = await getConfig("withdraw_enabled", true);
+  await setConfig("withdraw_enabled", !current);
+  await logAdminAction(ctx.from.id, ctx.from.first_name || "Admin", !current ? "Withdraw Enabled" : "Withdraw Disabled", "", 0, null);
+  await ctx.answerCallbackQuery({ text: !current ? "ON" : "OFF" }).catch(() => { });
+});
+
+bot.callbackQuery("adm_add_bal", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  userState[ctx.from.id] = "WAITING_FOR_ADD_BAL";
+  await ctx.editMessageText("➕ <b>Add Balance</b>\n\n📝 Send:\n<code>UserID Amount</code>\n<code>@username Amount</code>\n\n💡 Example:\n<code>8061612320 100</code>\n<code>@myfriend 50</code>", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: "admin", style: "primary" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("adm_rem_bal", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  userState[ctx.from.id] = "WAITING_FOR_REM_BAL";
+  await ctx.editMessageText("➖ <b>Remove Balance</b>\n\n📝 Send:\n<code>UserID Amount</code>\n<code>@username Amount</code>\n\n💡 Example:\n<code>8061612320 100</code>\n<code>@myfriend 50</code>", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: "admin", style: "primary" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("adm_reset_all_bal", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  var userCount = await User.countDocuments({});
+  var kb = new InlineKeyboard().row({ text: "Yes, Reset All", callback_data: "adm_reset_all_confirm", style: "danger" }).row({ text: "Cancel", callback_data: "admin", style: "primary" });
+  await ctx.editMessageText("⚠️ <b>RESET ALL BALANCES</b>\n\nUsers: " + userCount + "\n\nThis will reset EVERYONE's balance to 0!\n\nConfirm?", { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+});
+
+bot.callbackQuery("adm_reset_all_confirm", async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  await ctx.answerCallbackQuery({ text: "Resetting..." }).catch(() => { });
+  await User.updateMany({}, { $set: { balance: 0, withdrawnTotal: 0 } });
+  await logAdminAction(ctx.from.id, ctx.from.first_name || "Admin", "Reset All Balances", "All users", 0, null);
+  await ctx.editMessageText("All balances reset to 0", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: "admin", style: "primary" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("adm_talk_user", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  userState[ctx.from.id] = "WAITING_FOR_USER_MESSAGE";
+  await ctx.editMessageText("💬 Format: <code>UserID | Message</code>", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "admin", style: "danger" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("adm_find_user", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  userState[ctx.from.id] = "WAITING_FOR_TRACKER_ID";
+  await ctx.editMessageText("<b>Find User Details</b>\n\n📝 Send User ID:", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: "admin", style: "primary" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery(/^user_detail_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  var uid = parseInt(ctx.callbackQuery.data.replace("user_detail_", ""), 10);
+  var u = await User.findOne({ userId: uid }).lean();
+  if (!u) return;
+  var approvedCount = await Withdrawal.countDocuments({ userId: uid, status: "Approved" });
+  var totalWdArr = await Withdrawal.aggregate([{ $match: { userId: uid, status: "Approved" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]);
+  var totalWd = totalWdArr[0] ? totalWdArr[0].total : 0;
+  var bodyText = "Name: " + (u.firstName || "User") + "\nID: " + uid + "\nUsername: " + (u.username ? "@" + u.username : "None") + "\n\nBalance: " + formatBalance(u.balance) + "\nTotal Withdrawn: " + RUPEE + totalWd.toFixed(2) + "\nWithdraw Count: " + approvedCount + "\n\nJoined: " + formatDateTime(u.createdAt);
+  var text = "<b>User Details</b>\n\n<blockquote>" + bodyText + "</blockquote>";
+  var kb = new InlineKeyboard()
+    .row({ text: "Linked Withdraw", callback_data: "user_linked_" + uid, style: "primary" })
+    .row({ text: "Withdraw History", callback_data: "user_wd_hist_" + uid, style: "primary" })
+    .row({ text: "Balance History", callback_data: "user_bal_hist_" + uid, style: "primary" })
+    .row({ text: "Add Balance", callback_data: "user_add_bal_" + uid, style: "success" }, { text: "Remove Balance", callback_data: "user_rem_bal_" + uid, style: "danger" })
+    .row({ text: "Send Message", callback_data: "user_send_msg_" + uid, style: "primary" }, { text: "Ban/Unban", callback_data: "user_ban_" + uid, style: "danger" })
+    .row({ text: "Back", callback_data: "admin", style: "primary" });
+  await ctx.editMessageText(text, { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+});
+
+bot.callbackQuery(/^user_linked_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  var uid = parseInt(ctx.callbackQuery.data.replace("user_linked_", ""), 10);
+  var u = await User.findOne({ userId: uid }).lean();
+  if (!u) return;
+  var bodyText = "Wallet Number: " + (u.walletNumber || "Not Set") + "\n\nUPI: " + (u.upiId || "Not Set") + "\n\nBank: " + (u.bankAccNo || "Not Set") + "\n\nAmazon: " + (u.amazonEmail || "Not Set") + "\n\nRedeem: " + (u.redeemCodeAddr || "Not Set");
+  await ctx.editMessageText("<b>Linked Withdraw Methods</b>\n\n<blockquote>" + bodyText + "</blockquote>", { reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: "user_detail_" + uid, style: "primary" }]] }, parse_mode: "HTML" }).catch(() => { });
+});
+
+bot.callbackQuery(/^user_wd_hist_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  var uid = parseInt(ctx.callbackQuery.data.replace("user_wd_hist_", ""), 10);
+  var withdrawals = await Withdrawal.find({ userId: uid }).sort({ createdAt: -1 }).limit(10).lean();
+  var totalArr = await Withdrawal.aggregate([{ $match: { userId: uid, status: "Approved" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]);
+  var total = totalArr[0] ? totalArr[0].total : 0;
+  var approved = await Withdrawal.countDocuments({ userId: uid, status: "Approved" });
+  var pending = await Withdrawal.countDocuments({ userId: uid, status: "Pending" });
+  var rejected = await Withdrawal.countDocuments({ userId: uid, status: "Rejected" });
+  var bodyText = "Total: " + RUPEE + total.toFixed(2) + "\n✅ " + approved + " | ⏳ " + pending + " | ❌ " + rejected + "\n\n";
+  if (withdrawals.length === 0) bodyText += "No withdrawals";
+  else withdrawals.forEach(function(w, i) { var icon = w.status === "Approved" ? "✅" : (w.status === "Rejected" ? "❌" : "⏳"); bodyText += (i + 1) + ". " + icon + " " + RUPEE + w.amount + " — " + w.method + "\n" + formatDateTime(w.createdAt) + "\n\n"; });
+  await ctx.editMessageText("<b>Withdraw History</b>\n\n<blockquote>" + bodyText + "</blockquote>", { reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: "user_detail_" + uid, style: "primary" }]] }, parse_mode: "HTML" }).catch(() => { });
+});
+
+bot.callbackQuery(/^user_bal_hist_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  var uid = parseInt(ctx.callbackQuery.data.replace("user_bal_hist_", ""), 10);
+  var history = await BalanceHistory.find({ userId: uid }).sort({ createdAt: -1 }).limit(15).lean();
+  var u = await User.findOne({ userId: uid }).lean();
+  var totalIn = 0, totalOut = 0;
+  history.forEach(function(h) { if (h.amount >= 0) totalIn += h.amount; else totalOut += Math.abs(h.amount); });
+  var bodyText = "🟢 Credited: " + RUPEE + totalIn.toFixed(2) + "\n🔴 Debited: " + RUPEE + totalOut.toFixed(2) + "\n💵 Current: " + formatBalance(u ? u.balance : 0) + "\n\n";
+  if (history.length === 0) bodyText += "No transactions";
+  else history.forEach(function(h, i) { var icon = h.amount >= 0 ? "🟢" : "🔴"; var sign = h.amount >= 0 ? "+" : ""; bodyText += (i + 1) + ". " + icon + " " + h.action + "\n   " + sign + RUPEE + h.amount.toFixed(2) + "\n" + formatDateTime(h.createdAt) + "\n\n"; });
+  await ctx.editMessageText("<b>Balance History</b>\n\n<blockquote>" + bodyText + "</blockquote>", { reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: "user_detail_" + uid, style: "primary" }]] }, parse_mode: "HTML" }).catch(() => { });
+});
+
+bot.callbackQuery(/^user_add_bal_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  var uid = parseInt(ctx.callbackQuery.data.replace("user_add_bal_", ""), 10);
+  userState[ctx.from.id] = "UADD_WAIT_" + uid;
+  await ctx.editMessageText("➕ Send amount to add to <code>" + uid + "</code>:", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "user_detail_" + uid, style: "danger" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery(/^user_rem_bal_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  var uid = parseInt(ctx.callbackQuery.data.replace("user_rem_bal_", ""), 10);
+  userState[ctx.from.id] = "UREM_WAIT_" + uid;
+  await ctx.editMessageText("➖ Send amount to remove from <code>" + uid + "</code>:", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "user_detail_" + uid, style: "danger" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery(/^user_send_msg_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  var uid = parseInt(ctx.callbackQuery.data.replace("user_send_msg_", ""), 10);
+  userState[ctx.from.id] = "UMSG_WAIT_" + uid;
+  await ctx.editMessageText("💬 Send message to <code>" + uid + "</code>:", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Cancel", callback_data: "user_detail_" + uid, style: "danger" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery(/^user_ban_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  var uid = parseInt(ctx.callbackQuery.data.replace("user_ban_", ""), 10);
+  var u = await User.findOne({ userId: uid });
+  if (!u) return;
+  u.isBanned = !u.isBanned;
+  await u.save();
+  await logAdminAction(ctx.from.id, ctx.from.first_name || "Admin", u.isBanned ? "User Banned" : "User Unbanned", String(uid), 0, uid);
+  await ctx.answerCallbackQuery({ text: u.isBanned ? "Banned" : "Unbanned" }).catch(() => { });
+});
+
+bot.callbackQuery(/^fund_verify_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id)) && !(await isOwner(ctx.from.id))) return ctx.answerCallbackQuery({ text: "❌ Unauthorized!", show_alert: true }).catch(() => { });
+  var uid = parseInt(ctx.callbackQuery.data.replace("fund_verify_", ""), 10);
+  var history = await BalanceHistory.find({ userId: uid }).sort({ createdAt: -1 }).limit(30).lean();
+  var bodyText = "";
+  if (history.length === 0) bodyText = "No transactions.";
+  else history.forEach(function(h) { var icon = h.amount >= 0 ? "✅" : "📤"; var sign = h.amount >= 0 ? "+" : ""; bodyText += icon + " " + h.action + "   " + sign + RUPEE + Math.abs(h.amount).toFixed(2) + "\n"; });
+  await ctx.reply("💰 <b>Fund Verify</b>\n\n<blockquote>" + bodyText + "</blockquote>", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Close", callback_data: "noop", style: "primary" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery(/^track_status_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id)) && !(await isOwner(ctx.from.id))) return ctx.answerCallbackQuery({ text: "❌ Unauthorized!", show_alert: true }).catch(() => { });
+  var wdId = ctx.callbackQuery.data.replace("track_status_", "");
+  var wd = await Withdrawal.findOne({ withdrawalId: wdId }).lean();
+  if (!wd) return ctx.answerCallbackQuery({ text: "Not found", show_alert: true }).catch(() => { });
+  var taxAmount = wd.taxAmount || 0;
+  var netAmount = wd.netAmount || (wd.amount - taxAmount);
+  var bodyText = "Request ID : #" + wd.userWithdrawalCount + "\nUser : " + wd.userId + "\nAmount : " + RUPEE + wd.amount.toFixed(2) + "\nAfter Tax : " + RUPEE + netAmount.toFixed(2) + "\n\n";
+  if (wd.status === "Approved") bodyText += "Status : ✅ Approved\nApproved by " + (wd.approvedBy || "Admin") + "\nat " + formatDateTime(wd.approvedAt || wd.createdAt) + "\nTXN ID : " + wd.txnNumber;
+  else if (wd.status === "Rejected") bodyText += "Status : ❌ Rejected\nRejected by " + (wd.approvedBy || "Admin") + "\nat " + formatDateTime(wd.approvedAt || wd.createdAt) + "\nRefunded : " + RUPEE + wd.amount.toFixed(2);
+  else bodyText += "Status : ⏳ Pending\nWaiting for admin approval...";
+  await ctx.reply("🔍 <b>Track Status</b>\n\n<blockquote>" + bodyText + "</blockquote>", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Close", callback_data: "noop", style: "primary" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("adm_broadcast", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  userState[ctx.from.id] = "BROADCAST_WAIT_MSG";
+  global.broadcastCache = global.broadcastCache || {};
+  delete global.broadcastCache[ctx.from.id];
+  await renderBroadcastPage(ctx);
+});
+
+async function renderBroadcastPage(ctx) {
+  var cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  var broadcasts = await Broadcast.find({ createdAt: { $gte: cutoff }, status: "Completed" }).sort({ createdAt: -1 }).limit(15).lean();
+  var text = "📢 <b>Broadcast Setup</b>\n\n<b>Step 1 — Send Your Message</b>\nWrite your message just like a normal Telegram chat.\n\nYou can use Telegram's built-in formatting:\n• <b>Bold</b> • <i>Italic</i> • <u>Underline</u> • <s>Strike</s> • <code>Mono</code>\n• <a href=\"https://t.me\">Clickable Links</a> • <tg-spoiler>Spoiler</tg-spoiler>\n<blockquote>Quote 💬</blockquote>\n\n<i>No HTML or coding is required.</i>\nThe bot will send the message exactly as you format it. ✅\n\n<b>Step 2 — Choose a Send Mode</b>\n🚀 Direct Mode — Clean message (no forwarding tag)\n🔄 Forward Mode — Shows Forwarded from channel\n\n👉 <b>Now, send your message below</b> 👇";
+  var kb = new InlineKeyboard();
+  for (var i = 0; i < broadcasts.length; i++) {
+    var b = broadcasts[i];
+    var preview = getBroadcastPreview(b);
+    var timeAgo = formatTimeAgo(b.createdAt);
+    var label = preview + " — " + timeAgo;
+    if (label.length > 40) label = label.substring(0, 38) + "..";
+    kb.row({ text: label, callback_data: "bc_view_" + b.broadcastId, style: "primary" });
+  }
+  kb.row({ text: "Back", callback_data: "admin", style: "primary" });
+  if (ctx.callbackQuery) await ctx.editMessageText(text, { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+  else await ctx.reply(text, { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+}
+
+function getBroadcastPreview(b) {
+  if (b.messageType === "text") {
+    var content = (b.content || "").replace(/<[^>]*>/g, "").trim();
+    if (!content) return "📢 Text";
+    return content.length > 25 ? content.substring(0, 25) + "..." : content;
+  }
+  var icons = { photo: "📸 Photo", video: "🎬 Video", audio: "🎵 Audio", document: "📄 Document", sticker: "🎨 Sticker", voice: "🎤 Voice", animation: "🎬 GIF", forward: "🔄 Forward" };
+  return icons[b.messageType] || "📢 Broadcast";
+}
+
+async function renderBroadcastConfirm(ctx, cacheObj) {
+  var mode = cacheObj.mode || "direct";
+  var modeIcon = mode === "direct" ? "🚀" : "🔄";
+  var modeText = mode === "direct" ? "DIRECT MODE" : "FORWARD MODE";
+  var modeDesc = mode === "direct" ? "Clean broadcast, no forwarding tag" : "Shows 'Forwarded from channel' tag";
+  var buttonCount = 0;
+  if (cacheObj.buttonRows) buttonCount = cacheObj.buttonRows.reduce(function(s, r) { return s + r.length; }, 0);
+  var buttonText = buttonCount > 0 ? "✅ " + buttonCount + " Buttons" : "❌ No Buttons";
+  var typeText = (cacheObj.type || "text").toUpperCase();
+  var text = "⚠️ <b>Confirm Broadcast</b>\n\n<b>Type:</b> " + typeText + "\n<b>Mode:</b> " + modeIcon + " <b>" + modeText + "</b> (" + modeDesc + ")\n<b>Buttons:</b> " + buttonText + "\n\n<i>Select mode then click Confirm:</i>\n• 🚀 Direct Mode: Fast, clean (recommended)\n• 🔄 Forward Mode: Shows 'Forwarded from channel' tag\n\n<b>Do you want to send this message to all users?</b>";
+  var directBtn = mode === "direct" ? "✅ Direct Mode" : "Direct Mode";
+  var forwardBtn = mode === "forward" ? "✅ Forward Mode" : "Forward Mode";
+  var kb = new InlineKeyboard()
+    .row({ text: directBtn, callback_data: "broadcast_mode_direct", style: "success" }, { text: forwardBtn, callback_data: "broadcast_mode_forward", style: "primary" })
+    .row({ text: "Add Buttons", callback_data: "broadcast_add_buttons", style: "primary" })
+    .row({ text: "Confirm & Send", callback_data: "broadcast_confirm_send", style: "success" }, { text: "Cancel", callback_data: "broadcast_cancel", style: "danger" })
+    .row({ text: "Back", callback_data: "adm_broadcast", style: "primary" });
+  if (ctx.callbackQuery) await ctx.editMessageText(text, { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+  else await ctx.reply(text, { reply_markup: kb, parse_mode: "HTML" }).catch(() => { });
+}
+
+bot.callbackQuery("broadcast_mode_direct", async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  var userId = ctx.from.id;
+  if (!global.broadcastCache || !global.broadcastCache[userId]) return ctx.answerCallbackQuery({ text: "Expired!", show_alert: true }).catch(() => { });
+  global.broadcastCache[userId].mode = "direct";
+  await ctx.answerCallbackQuery({ text: "🚀 Direct Mode" }).catch(() => { });
+  await renderBroadcastConfirm(ctx, global.broadcastCache[userId]);
+});
+
+bot.callbackQuery("broadcast_mode_forward", async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  var userId = ctx.from.id;
+  if (!global.broadcastCache || !global.broadcastCache[userId]) return ctx.answerCallbackQuery({ text: "Expired!", show_alert: true }).catch(() => { });
+  global.broadcastCache[userId].mode = "forward";
+  await ctx.answerCallbackQuery({ text: "🔄 Forward Mode" }).catch(() => { });
+  await renderBroadcastConfirm(ctx, global.broadcastCache[userId]);
+});
+
+bot.callbackQuery("broadcast_add_buttons", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  userState[ctx.from.id] = "BROADCAST_ADD_BUTTONS";
+  var text = "⌨️ <b>Add Inline Buttons</b>\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n🟢 <b>Basic Format (One Button)</b>\n<code>Button Text - https://example.com</code>\n\n🟢 <b>Multiple Buttons (New Row)</b>\n<code>Join Channel - https://t.me/YourChannel\nSupport - https://t.me/YourSupport</code>\n\n🟢 <b>Two Buttons In Same Row</b>\n<code>Join - https://t.me/A && Support - https://t.me/B</code>\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n📌 <b>Rules:</b>\n• Each new line = new row\n• Use && to place buttons in same row";
+  await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: "broadcast_confirm_back", style: "primary" }]] } }).catch(() => { });
+});
+
+bot.callbackQuery("broadcast_confirm_back", async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  var userId = ctx.from.id;
+  var cacheObj = global.broadcastCache && global.broadcastCache[userId];
+  if (!cacheObj) return ctx.answerCallbackQuery({ text: "Expired!", show_alert: true }).catch(() => { });
+  await renderBroadcastConfirm(ctx, cacheObj);
+});
+
+bot.callbackQuery("broadcast_cancel", async (ctx) => {
+  var userId = ctx.from.id;
+  delete userState[userId];
+  if (global.broadcastCache) delete global.broadcastCache[userId];
+  await ctx.answerCallbackQuery({ text: "❌ Cancelled" }).catch(() => { });
+  await renderBroadcastPage(ctx);
+});
+
+bot.callbackQuery("broadcast_confirm_send", async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  var userId = ctx.from.id;
+  var cacheObj = global.broadcastCache && global.broadcastCache[userId];
+  if (!cacheObj) return ctx.answerCallbackQuery({ text: "Expired!", show_alert: true }).catch(() => { });
+  if (cacheObj.confirmed) return ctx.answerCallbackQuery({ text: "Already confirmed!", show_alert: true }).catch(() => { });
+  cacheObj.confirmed = true;
+  var mode = cacheObj.mode || "direct";
+  var modeIcon = mode === "direct" ? "🚀" : "🔄";
+  var modeText = mode === "direct" ? "DIRECT MODE" : "FORWARD MODE";
+  delete userState[userId];
+  delete global.broadcastCache[userId];
+  await ctx.answerCallbackQuery({ text: "🚀 Broadcasting..." }).catch(() => { });
+  var totalUsers = await User.countDocuments({});
+  await ctx.editMessageText("📢 <b>Broadcasting...</b>\n\n📢 <b>Mode:</b> " + modeIcon + " " + modeText + "\n👥 <b>Total Users:</b> " + totalUsers + "\n\n⏳ Starting...", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "Back to Admin", callback_data: "admin", style: "primary" }]] } }).catch(() => { });
+  setImmediate(async () => { await runBroadcast(userId, ctx, cacheObj, totalUsers); });
+});
+
+async function sendBroadcastWithButtons(bot, userId, cacheObj, inlineKb) {
+  var sendOpts = { parse_mode: "HTML" };
+  if (inlineKb) sendOpts.reply_markup = inlineKb;
+  if (cacheObj.type === "text") return await bot.api.sendMessage(userId, cacheObj.content, sendOpts);
+  if (cacheObj.type === "photo") return await bot.api.sendPhoto(userId, cacheObj.fileId, Object.assign({}, sendOpts, { caption: cacheObj.caption || "" }));
+  if (cacheObj.type === "video") return await bot.api.sendVideo(userId, cacheObj.fileId, Object.assign({}, sendOpts, { caption: cacheObj.caption || "" }));
+  if (cacheObj.type === "audio") return await bot.api.sendAudio(userId, cacheObj.fileId, Object.assign({}, sendOpts, { caption: cacheObj.caption || "" }));
+  if (cacheObj.type === "document") return await bot.api.sendDocument(userId, cacheObj.fileId, Object.assign({}, sendOpts, { caption: cacheObj.caption || "" }));
+  if (cacheObj.type === "sticker") return await bot.api.sendSticker(userId, cacheObj.fileId, inlineKb ? { reply_markup: inlineKb } : {});
+  if (cacheObj.type === "animation") return await bot.api.sendAnimation(userId, cacheObj.fileId, Object.assign({}, sendOpts, { caption: cacheObj.caption || "" }));
+  if (cacheObj.type === "voice") return await bot.api.sendVoice(userId, cacheObj.fileId, Object.assign({}, sendOpts, { caption: cacheObj.caption || "" }));
+}
+
+async function runBroadcast(adminId, ctx, cacheObj, totalUsers) {
+  try {
+    var startTime = Date.now();
+    var allUsers = await User.find({}).lean();
+    var total = allUsers.length;
+    var sent = 0, failed = 0, processed = 0;
+    var mode = cacheObj.mode || "direct";
+    var modeIcon = mode === "direct" ? "\uD83D\uDE80" : "\uD83D\uDD04";
+    var modeText = mode === "direct" ? "DIRECT MODE" : "FORWARD MODE";
+    var inlineKb = null;
+    if (cacheObj.buttonRows && cacheObj.buttonRows.length > 0) inlineKb = buildInlineKeyboardFromRows(cacheObj.buttonRows);
+    var statusMsg;
+    try {
+      statusMsg = await bot.api.sendMessage(adminId, "\uD83D\uDE80 <b>Broadcast Running...</b>\n\n\uD83D\uDCE2 <b>Mode:</b> " + modeIcon + " " + modeText + "\n\uD83D\uDC65 <b>Total:</b> " + total + "\n\n\u23F3 Starting...", { parse_mode: "HTML" });
+    } catch (e) { }
+    var lastUpdate = Date.now();
+    var UPDATE_INTERVAL = 1500;
+    for (var ui = 0; ui < allUsers.length; ui++) {
+      var u = allUsers[ui];
+      try {
+        if (mode === "forward" && cacheObj.fromChatId && cacheObj.fromMessageId) {
+          await bot.api.forwardMessage(u.userId, cacheObj.fromChatId, cacheObj.fromMessageId);
+        } else {
+          await sendBroadcastWithButtons(bot, u.userId, cacheObj, inlineKb);
+        }
+        sent++;
+      } catch (e) { failed++; }
+      processed++;
+      var now = Date.now();
+      if (now - lastUpdate > UPDATE_INTERVAL && statusMsg) {
+        var elapsed = (now - startTime) / 1000;
+        var speed = elapsed > 0 ? processed / elapsed : 0;
+        var percent = total > 0 ? (processed / total) * 100 : 0;
+        var bar = makeProgressBar(percent);
+        try {
+          await bot.api.editMessageText(adminId, statusMsg.message_id, "\uD83D\uDE80 <b>Broadcast Running...</b>\n\n\uD83D\uDCE2 <b>Mode:</b> " + modeIcon + " " + modeText + "\n\uD83D\uDCCA <b>Progress:</b> " + percent.toFixed(1) + "%\n" + bar + "\n\n\uD83D\uDC65 <b>Total:</b> " + total + "\n\u2705 <b>Success:</b> " + sent + "\n\u274C <b>Failed:</b> " + failed + "\n\u26A1 <b>Speed:</b> " + speed.toFixed(1) + " msg/sec", { parse_mode: "HTML" });
+        } catch (e) { }
+        lastUpdate = now;
+      }
+      await new Promise(function(r) { setTimeout(r, 40); });
+    }
+    var totalTime = (Date.now() - startTime) / 1000;
+    var avgSpeed = totalTime > 0 ? total / totalTime : 0;
+    var broadcastId = Math.floor(100000 + Math.random() * 900000).toString();
+    await Broadcast.create({ broadcastId: broadcastId, adminId: adminId, adminName: "Admin", messageType: cacheObj.type || "text", content: cacheObj.content || cacheObj.caption || "", fileId: cacheObj.fileId || "", sentCount: sent, failedCount: failed, totalCount: total, timeTaken: parseFloat(totalTime.toFixed(1)), status: failed === 0 ? "Completed" : "Partial" });
+    if (statusMsg) {
+      try {
+        await bot.api.editMessageText(adminId, statusMsg.message_id, "\u2705 <b>Broadcast Completed!</b>\n\n\uD83D\uDCE2 <b>Mode:</b> " + modeIcon + " " + modeText + "\n\uD83D\uDC65 <b>Total:</b> " + total + "\n\u2705 <b>Success:</b> " + sent + "\n\u274C <b>Failed:</b> " + failed + "\n\u26A1 <b>Avg Speed:</b> " + avgSpeed.toFixed(1) + " msg/sec\n\u23F1\uFE0F <b>Time:</b> " + totalTime.toFixed(1) + "s", { parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "\u2B05\uFE0F Back", callback_data: "admin", style: "primary" }]] } });
+      } catch (e) { }
+    }
+  } catch (e) { console.error("runBroadcast error:", e.message); }
+}
+
+bot.callbackQuery(/^bc_view_/, async (ctx) => {
+  ctx.answerCallbackQuery().catch(() => { });
+  if (!(await isAdmin(ctx.from.id))) return;
+  var bcId = ctx.callbackQuery.data.replace("bc_view_", "");
+  var b = await Broadcast.findOne({ broadcastId: bcId }).lean();
+  if (!b) return ctx.answerCallbackQuery({ text: "Not found", show_alert: true }).catch(() => { });
+  var typeIcon = { text: "📝", photo: "📸", video: "🎬", audio: "🎵", document: "📄", sticker: "🎨", voice: "🎤", animation: "🎬", forward: "🔄" }[b.messageType] || "📢";
+  var bodyText = typeIcon + " Type: " + b.messageType + "\n👥 Sent: " + b.sentCount + "\n❌ Failed: " + b.failedCount + "\n📊 Total: " + b.totalCount + "\n⏱️ Time: " + b.timeTaken + "s\n🕐 " + formatDateTime(b.createdAt) + "\n";
+  if (b.content) bodyText += "\nContent:\n" + b.content;
+  var kb = new InlineKeyboard().row({ text: "🗑️ Delete", callback_data: "bc_del_" + bcId, style: "danger" }).row({ text: "Back", callback_data: "adm_broadcast", style: "primary" });
+  await ctx.editMessageText("📢 <b>Broadcast Details</b>\n\n<blockquote>" + bodyText + "</blockquote>", { parse_mode: "HTML", reply_markup: kb }).catch(() => { });
+});
+
+bot.callbackQuery(/^bc_del_/, async (ctx) => {
+  if (!(await isAdmin(ctx.from.id))) return ctx.answerCallbackQuery({ text: "Unauthorized", show_alert: true }).catch(() => { });
+  var bcId = ctx.callbackQuery.data.replace("bc_del_", "");
+  await Broadcast.deleteOne({ broadcastId: bcId });
+  await logAdminAction(ctx.from.id, ctx.from.first_name || "Admin", "Broadcast Deleted", bcId, 0, null);
+  await ctx.answerCallbackQuery({ text: "🗑️ Deleted!" }).catch(() => { });
+  await renderBroadcastPage(ctx);
+});
+
+bot.command("start", async (ctx) => {
+  try {
+    delete userState[ctx.from.id];
+    var userId = ctx.from.id;
+    var existingUser = await User.findOne({ userId }).lean();
+    var isNewUser = !existingUser;
+    var user = await getUser(userId);
+    user.firstName = ctx.from.first_name || "";
+    user.lastName = ctx.from.last_name || "";
+    user.username = ctx.from.username || "";
+    await user.save();
+    if (isNewUser) {
+      await NewUserLog.findOneAndUpdate({ userId }, { firstName: ctx.from.first_name || "", username: ctx.from.username || "", startTime: new Date() }, { upsert: true });
+      var nameStr = ((ctx.from.first_name || "") + " " + (ctx.from.last_name || "")).trim() || "No Name";
+      var usernameStr = ctx.from.username ? "@" + ctx.from.username : "No Username";
+      var notifMsg = "🆕 <b>New User Started Bot!</b>\n\n👤 " + nameStr + "\n🆔 <code>" + userId + "</code>\n📛 " + usernameStr + "\n💰 " + RUPEE + user.balance.toFixed(2) + "\n📅 " + formatDateTime(new Date());
+      var profileKb = { inline_keyboard: [[{ text: "👤 Open Profile", url: "tg://user?id=" + userId, style: "primary" }]] };
+      var newUserNotif = await getConfig("new_user_notif", true);
+      if (newUserNotif) {
+        try { await ctx.api.sendMessage(MAIN_OWNER_ID, notifMsg, { parse_mode: "HTML", reply_markup: profileKb }).catch(() => { }); } catch (e) { }
+      }
+    }
+    if (user.isBanned) return ctx.reply("You are banned from using this bot.").catch(() => { });
+    var botStatus = await getConfig("bot_status", "active");
+    if (botStatus === "maintenance" || botStatus === "disabled") {
+      var isAdminUser = await isAdmin(userId);
+      if (!isAdminUser) {
+        var botOffText;
+        if (botStatus === "maintenance") botOffText = await getConfig("bot_maintenance_text", "⚠️ Bot is under maintenance. Please try again later.");
+        else botOffText = await getConfig("bot_off_text", "❌ Bot is currently disabled.");
+        return ctx.reply(botOffText, { parse_mode: "HTML" }).catch(() => { });
+      }
+    }
+    var isJoined = await checkForceJoin(ctx);
+    if (!isJoined) return sendForceJoinMessage(ctx);
+    var titleText = await getConfig("start_title_text", DEFAULT_START_TEXT.title);
+    var linkPrefix = await getConfig("start_link_prefix", DEFAULT_START_TEXT.linkPrefix);
+    var linkClickable = await getConfig("start_link_clickable", DEFAULT_START_TEXT.linkClickable);
+    var welcomeLink = await getConfig("welcome_channel_link", "https://t.me/yourchannel");
+    var finalLink = convertOwnerLink(welcomeLink);
+    var welcomeText = titleText + "\n\n" + linkPrefix + '<a href="' + finalLink + '">' + linkClickable + "</a>";
+    var socialLinks = await SocialLink.find({}).lean();
+    if (socialLinks.length > 0) {
+      welcomeText += "\n\n";
+      for (var i = 0; i < socialLinks.length; i++) welcomeText += '<a href="' + socialLinks[i].link + '">' + socialLinks[i].name + "</a>  ";
+    }
+    try {
+      await ctx.reply(welcomeText, { reply_markup: await buildKeyboardFromLayout(userId), parse_mode: "HTML" });
+    } catch (htmlErr) {
+      await ctx.reply(titleText + "\n\n" + linkPrefix + linkClickable + "\n" + finalLink, { reply_markup: await buildKeyboardFromLayout(userId) }).catch(() => { });
+    }
+  } catch (err) {
+    try { await ctx.reply("❌ Error: " + err.message).catch(() => { }); } catch (e) { }
+  }
+});
+
+async function sendForceJoinMessage(ctx) {
+  var channels = await Channel.find({ isActive: true, isHidden: { $ne: true } }).sort({ order: 1, addedAt: 1 }).lean();
+  if (!channels || channels.length === 0) return null;
+  var userId = ctx.from.id;
+  var showMode = await getConfig("show_mode", "all");
+  var displayChannels = [];
+  var notJoinedCount = 0;
+  for (var i = 0; i < channels.length; i++) {
+    var ch = channels[i];
+    var isJoined = false;
+    try {
+      var member = await ctx.api.getChatMember(ch.channelId, userId);
+      if (["member", "administrator", "creator"].indexOf(member.status) >= 0) isJoined = true;
+    } catch (e) { }
+    if (!isJoined) notJoinedCount++;
+    if (showMode === "all" || !isJoined) displayChannels.push(Object.assign({}, ch, { isJoined: isJoined }));
+  }
+  if (displayChannels.length === 0) return null;
+  var title = "\u26A0\uFE0F " + toSmallCaps("You Must Join Our Channels!");
+  var bodyText = "\uD83D\uDC47 " + toSmallCaps("Join all channels below") + ":";
+  var text = title + "\n\n<blockquote>" + bodyText + "</blockquote>";
+  if (notJoinedCount > 0) text += "\n\n" + toSmallCaps("You have not joined in " + notJoinedCount + " channels");
+  var rows = [];
+  for (var j = 0; j < displayChannels.length; j++) {
+    var dch = displayChannels[j];
+    rows.push([{ text: "\uD83D\uDCE2 " + (dch.displayName || dch.channelId), url: dch.inviteLink, style: dch.isJoined ? "success" : "danger" }]);
+  }
+  rows.push([{ text: "\u2705 Claim", callback_data: "check_join", style: "success" }]);
+  return ctx.reply(text, { reply_markup: { inline_keyboard: rows }, parse_mode: "HTML" }).catch(function() { });
+}
+
+bot.callbackQuery("check_join", async (ctx) => {
+  var userId = ctx.from.id;
+  var isJoined = await checkForceJoin(ctx);
+  if (!isJoined) {
+    await ctx.answerCallbackQuery({ text: "You must join all channels first!", show_alert: true }).catch(() => { });
+    await ctx.deleteMessage().catch(() => { });
+    await sendForceJoinMessage(ctx);
+    return;
+  }
+  await ctx.answerCallbackQuery({ text: "Verified!" }).catch(() => { });
+  await ctx.deleteMessage().catch(() => { });
+  await ctx.reply("✅ " + toSmallCaps("Verified!") + "\n\n" + toSmallCaps("Welcome to the bot!"), { parse_mode: "HTML", reply_markup: await buildKeyboardFromLayout(userId) }).catch(() => { });
+});
+
+global.lastBalance = global.lastBalance || {};
+
+async function sendBalancePage(ctx, edit, animate) {
+  if (edit === undefined) edit = false;
+  if (animate === undefined) animate = true;
+  try {
+    var userId = ctx.from.id;
+    var user = await getUser(userId);
+    var newBalance = user.balance;
+    var welcomeText = await getConfig("balance_welcome_text", DEFAULT_BALANCE_TEXT.welcome);
+    var footerText = await getConfig("balance_footer_text", DEFAULT_BALANCE_TEXT.footer);
+    welcomeText = String(welcomeText || DEFAULT_BALANCE_TEXT.welcome);
+    footerText = String(footerText || DEFAULT_BALANCE_TEXT.footer);
+    var startBalance = 0;
+    var isRefresh = animate && ctx.callbackQuery && ctx.callbackQuery.data === "refresh_balance_only";
+    if (isRefresh && global.lastBalance[userId] !== undefined) startBalance = global.lastBalance[userId];
+    global.lastBalance[userId] = newBalance;
+    var balanceDisplay = formatBalance(newBalance);
+    var msg = welcomeText + "\n\n🔵 " + toSmallCaps("Wallet ID") + " ➝ <code>" + userId + "</code>\n🧾 " + toSmallCaps("Balance") + " ➝ <code>" + balanceDisplay + "</code>\n\n<blockquote>" + footerText + "</blockquote>";
+    var inlineStyles = await getConfig("inline_button_styles", {});
+    var depositEnabled = await getConfig("deposit_enabled", false);
+    var buttons = [];
+    if (depositEnabled) buttons.push([{ text: "💰 " + toSmallCaps("Deposit"), callback_data: "user_deposit", style: inlineStyles["deposit"] || "primary" }]);
+    buttons.push([
+      { text: "📊 " + toSmallCaps("Balance Statement"), callback_data: "balance_statement", style: inlineStyles["balance_statement"] || "primary" },
+      { text: "💰 " + toSmallCaps("Live Fund"), callback_data: "live_fund", style: inlineStyles["live_fund"] || "primary" }
+    ]);
+    buttons.push([{ text: "🔄 " + toSmallCaps("Refresh"), callback_data: "refresh_balance_only", style: inlineStyles["refresh_balance_only"] || "primary" }]);
+    var kb = { inline_keyboard: buttons };
+    var shouldAnimate = animate && newBalance > 0 && startBalance !== newBalance;
+    if (shouldAnimate) {
+      var messageId = null;
+      var chatId = ctx.chat.id;
+      if (edit && ctx.callbackQuery) {
+        messageId = ctx.callbackQuery.message.message_id;
+      } else {
+        var initialMsg = msg.replace(RUPEE + "[\d,]+\.\d{2}/, RUPEE + "0.00");
+        var sent = await ctx.reply(msg, { reply_markup: kb, parse_mode: "HTML" }).catch(function() { return null; });
+        if (!sent) return;
+        messageId = sent.message_id;
+      }
+      if (messageId) {
+        var steps = 8;
+        var diff = newBalance - startBalance;
+        for (var i = 1; i <= steps; i++) {
+          var progress = i / steps;
+          var eased = 1 - Math.pow(1 - progress, 3);
+          var currentBalance = startBalance + (diff * eased);
+          var animMsg = msg.replace(RUPEE + "[\d,]+\.\d{2}/, RUPEE + currentBalance.toFixed(2));
+          try {
+            await ctx.api.editMessageText(chatId, messageId, animMsg, { reply_markup: kb, parse_mode: "HTML" }).catch(function() { });
+          } catch (e) { }
+          await new Promise(function(r) { setTimeout(r, 100); });
+        }
+        await ctx.api.editMessageText(chatId, messageId, msg, { reply_markup: kb, parse_mode: "HTML" }).catch(function() { });
+        return;
+      }
+    }
+    try {
+      if (edit && ctx.callbackQuery) await ctx.editMessageText(msg, { reply_markup: kb, parse_mode: "HTML" });
+      else await ctx.reply(msg, { reply_markup: kb, parse_mode: "HTML" });
+    } catch (htmlErr) {
+      var plainWelcome = String(welcomeText).replace(/<[^>]*>/g, "");
+      var plainFooter = String(footerText).replace(/<[^>]*>/g, "");
+      var plainMsg = plainWelcome + "\n\n🔵 Wallet ID ➝ " + userId + "\n🧾 Balance ➝ " + balanceDisplay + "\n\n" + plainFooter;
+      if (edit && ctx.callbackQuery) await ctx.editMessageText(plainMsg, { reply_markup: kb }).catch(() => { });
+      else await ctx.reply(plainMsg, { reply_markup: kb }).catch(() => { });
+    }
+  } catch (e) {
+    console.error("sendBalancePage error:", e.message);
+    try { await ctx.reply("💰 Balance: " + RUPEE + (await getUser(ctx.from.id)).balance.toFixed(2)).catch(() => { }); } catch (_) { }
+  }
+}
+
