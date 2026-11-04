@@ -141,7 +141,7 @@ function halfMaskUPI(upi) {
   let name = parts[0];
   let domain = parts[1];
   let maskedName = name.length <= 3 ? name.substring(0, 1) + '***' : name.substring(0, 3) + '***';
-  return `${maskedName}@${domain}`;
+  return maskedName + '@' + domain;
 }
 
 function halfMaskBank(accNo) {
