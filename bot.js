@@ -163,8 +163,8 @@ function halfMaskDetails(method, details) {
   let m = String(method).toUpperCase();
   if (m.includes("UPI") || m.includes("AMAZON")) return halfMaskUPI(details);
   if (m.includes("BANK")) {
-    let parts = String(details).split(',').map(s => s.trim());
-    return halfMaskBank(parts[0]) + (parts[1] ? ` (${parts[1]})` : '');
+    let parts = String(details).split(',').map(function(s) { return s.trim(); });
+    return halfMaskBank(parts[0]) + (parts[1] ? ' (' + parts[1] + ')' : '');
   }
   if (m.includes("WALLET")) return halfMaskWallet(details);
   return halfMaskUPI(details);
