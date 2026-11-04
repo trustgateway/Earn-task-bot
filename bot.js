@@ -1,4 +1,4 @@
-#```javascript
+```javascript
 require("dotenv").config();
 const { Bot, Keyboard, InlineKeyboard, InputFile } = require("grammy");
 const mongoose = require("mongoose");
