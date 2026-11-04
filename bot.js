@@ -81,24 +81,18 @@ function entitiesToHtml(text, entities) {
     let target = result.substring(ent.offset, ent.offset + ent.length);
     let after = result.substring(ent.offset + ent.length);
     let wrapped = target;
-    switch (ent.type) {
-      case "bold": wrapped = `<b>${target}</b>`; break;
-      case "italic": wrapped = `<i>${target}</i>`; break;
-      case "underline": wrapped = `<u>${target}</u>`; break;
-      case "strikethrough": wrapped = `<s>${target}</s>`; break;
-      case "spoiler": wrapped = `<tg-spoiler>${target}</tg-spoiler>`; break;
-      case "code": wrapped = `<code>${target}</code>`; break;
-      case "pre": wrapped = `<pre>${target}</pre>`; break;
-      case "text_link": wrapped = `<a href="${ent.url}">${target}</a>`; break;
-      case "blockquote": wrapped = `<blockquote>${target}</blockquote>`; break;
-      case "text_mention":
-        if (ent.user) wrapped = `<a href="tg://user?id=${ent.user.id}">${target}</a>`;
-        break;
-      case "custom_emoji":
-        wrapped = `<tg-emoji emoji-id="${ent.custom_emoji_id}">${target}</tg-emoji>`;
-        break;
-      default: wrapped = target;
-    }
+    if (ent.type === "bold") wrapped = "<b>" + target + "</b>";
+    else if (ent.type === "italic") wrapped = "<i>" + target + "</i>";
+    else if (ent.type === "underline") wrapped = "<u>" + target + "</u>";
+    else if (ent.type === "strikethrough") wrapped = "<s>" + target + "</s>";
+    else if (ent.type === "spoiler") wrapped = "<tg-spoiler>" + target + "</tg-spoiler>";
+    else if (ent.type === "code") wrapped = "<code>" + target + "</code>";
+    else if (ent.type === "pre") wrapped = "<pre>" + target + "</pre>";
+    else if (ent.type === "text_link") wrapped = '<a href="' + ent.url + '">' + target + '</a>';
+    else if (ent.type === "blockquote") wrapped = "<blockquote>" + target + "</blockquote>";
+    else if (ent.type === "text_mention") { if (ent.user) wrapped = '<a href="tg://user?id=' + ent.user.id + '">' + target + '</a>'; }
+    else if (ent.type === "custom_emoji") wrapped = '<tg-emoji emoji-id="' + ent.custom_emoji_id + '">' + target + '</tg-emoji>';
+    else wrapped = target;
     result = before + wrapped + after;
   }
   return result;
