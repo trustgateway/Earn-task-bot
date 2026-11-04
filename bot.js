@@ -105,7 +105,13 @@ function formatDateTime(date) {
   let hours = ist.getHours();
   let ampm = hours >= 12 ? 'pm' : 'am';
   hours = hours % 12 || 12;
-  return `${String(ist.getDate()).padStart(2,'0')}/${String(ist.getMonth()+1).padStart(2,'0')}/${ist.getFullYear()}, ${String(hours).padStart(2,'0')}:${String(ist.getMinutes()).padStart(2,'0')}:${String(ist.getSeconds()).padStart(2,'0')} ${ampm}`;
+  let day = String(ist.getDate()).padStart(2, '0');
+  let mon = String(ist.getMonth() + 1).padStart(2, '0');
+  let year = ist.getFullYear();
+  let hh = String(hours).padStart(2, '0');
+  let mm = String(ist.getMinutes()).padStart(2, '0');
+  let ss = String(ist.getSeconds()).padStart(2, '0');
+  return day + '/' + mon + '/' + year + ', ' + hh + ':' + mm + ':' + ss + ' ' + ampm;
 }
 
 function formatDateShort(date) {
@@ -115,7 +121,13 @@ function formatDateShort(date) {
   let hours = ist.getHours();
   let ampm = hours >= 12 ? 'pm' : 'am';
   hours = hours % 12 || 12;
-  return `${String(ist.getDate()).padStart(2,'0')} ${months[ist.getMonth()]} ${ist.getFullYear()}, ${String(hours).padStart(2,'0')}:${String(ist.getMinutes()).padStart(2,'0')}:${String(ist.getSeconds()).padStart(2,'0')} ${ampm}`;
+  let day = String(ist.getDate()).padStart(2, '0');
+  let mon = months[ist.getMonth()];
+  let year = ist.getFullYear();
+  let hh = String(hours).padStart(2, '0');
+  let mm = String(ist.getMinutes()).padStart(2, '0');
+  let ss = String(ist.getSeconds()).padStart(2, '0');
+  return day + ' ' + mon + ' ' + year + ', ' + hh + ':' + mm + ':' + ss + ' ' + ampm;
 }
 
 function halfMaskUPI(upi) {
