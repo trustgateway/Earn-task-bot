@@ -3951,8 +3951,8 @@ async function sendBalancePage(ctx, edit, animate) {
       if (edit && ctx.callbackQuery) {
         messageId = ctx.callbackQuery.message.message_id;
       } else {
-        var initialMsg = msg.replace(RUPEE + "[\d,]+\.\d{2}/, RUPEE + "0.00");
-        var sent = await ctx.reply(msg, { reply_markup: kb, parse_mode: "HTML" }).catch(function() { return null; });
+        var initialMsg = msg.replace(new RegExp(RUPEE + "[\\d,]+\\.\\d{2}"), RUPEE + "0.00");
+        var animMsg = msg.replace(new RegExp(RUPEE + "[\\d,]+\\.\\d{2}"), RUPEE + currentBalance.toFixed(2));
         if (!sent) return;
         messageId = sent.message_id;
       }
