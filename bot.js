@@ -177,7 +177,7 @@ function halfMaskEmail(email) {
   if (parts.length !== 2) return str.substring(0, 2) + '***';
   let name = parts[0];
   let maskedName = name.length <= 1 ? name + '***' : name.substring(0, 1) + '***';
-  return `${maskedName}@${parts[1]}`;
+  return maskedName + '@' + parts[1];
 }
 
 function generateTxnNumber() {
